@@ -1,0 +1,9 @@
+boto3
+fastapi
+uvicorn
+requests
+streamlit
+langchain_core
+langgraph
+langchain_aws
+langchain_community
