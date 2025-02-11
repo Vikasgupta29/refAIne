@@ -167,11 +167,25 @@ bedrock_runtime = boto3.client('bedrock-runtime', region_name='us-west-2')
 # FastAPI App
 app = FastAPI()
 
-language = "SQL" if not st.session_state.get("language_toggle", False) else "Python"
+def generate_prompt(language, code, task_type):
+    if task_type == "fix_syntax":
+        prompt = f"Task: Fix the syntax of the code and return only the fixed code, nothing else.\n\n{language} Code:\n{code}\n\nProvide the corrected code without any explanation. Return 'Error: Language and Code Mismatch' if code provided is not {language}."
+        
+    elif task_type == "standardize":
+        prompt = f"Task: Standardize the provided code. Focus on enhancing readability and maintainability. This includes adding comments, docstrings, and adjusting variable names to follow the standard naming conventions (e.g., `var_name` instead of `varName`). Do **not** change the logic or functionality of the code.\n\n{language} Code:\n{code}\n\nReturn the standardized code with improvements like comments and docstrings, but without changing the core functionality. Return 'Error: Language and Code Mismatch' if code provided is not {language}."
+    
+    elif task_type == "document":
+        prompt = f"Task: Explain the provided code in simple language. Include a description of its purpose, structure, logic, and how it works. Provide any necessary details to understand the code. Include a simple example if applicable.\n\n{language} Code:\n{code}\n\nExplain the code. Return 'Error: Language and Code Mismatch' if code provided is not {language}."
+        
+    elif task_type == "optimize":
+        prompt = f"Task: Optimize the provided code if possible. Return the optimized code followed by a brief explanation of the optimization, and nothing else.\n\n{language} Code:\n{code}\n\nProvide the optimized code and explanation. Return 'Error: Language and Code Mismatch' if code provided is not {language}."
+    
+    return prompt
 
 # Function to Call AWS Claude Model
 def call_claude_api(code, task_type):
-    prompt = f"Task: {task_type}\n\n{language} Code:\n{code}\n\nProvide the response accordingly."
+    language = "SQL" if not st.session_state.get("language_toggle", False) else "Python"
+    prompt = generate_prompt(language, code, task_type)
     kwargs = {
         "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
         "contentType": "application/json",
@@ -277,20 +291,22 @@ with st.sidebar:
     st.warning("This is a demo application. The advice provided should not be considered as professional code review.")
     
     # Daily Coding Tip
-    coding_tips = [
-        "Name it like you mean it: Use meaningful variable and function names. Your future self will thank you.",
-        "DRY humor: Keep your code DRY (Don't Repeat Yourself). Repetition is for comedians, not coders.",
-        "Modular magic: Write modular and reusable code. Think of it as LEGO for adults.",
-        "Commentary corner: Comment your code for better readability. It's like leaving breadcrumbs for the next developer.",
-        "Backup bonanza: Regularly back up your code. Because losing code is like losing your car keys—frustrating and avoidable.",
-        "Git it together: Use version control systems like Git. It's like having a time machine for your code.",
-        "Performance pep talk: Optimize your code for better performance. Slow code is like a snail in a race—nobody's cheering.",
-        "Clean code club: Keep your code clean and well-documented. Messy code is like a messy room—hard to find anything.",
-        "Test fest: Write unit tests to ensure code quality. It's like giving your code a health check-up.",
-        "Dependency dance: Regularly update your dependencies. Outdated dependencies are like expired milk—best avoided."
-    ]
+    coding_tips = {
+        "Name it like you mean it": "Use meaningful variable and function names. Your future self will thank you.",
+        "DRY humor": "Keep your code DRY (Don't Repeat Yourself). Repetition is for comedians, not coders.",
+        "Modular magic": "Write modular and reusable code. Think of it as LEGO for adults.",
+        "Commentary corner": "Comment your code for better readability. It's like leaving breadcrumbs for the next developer.",
+        "Backup bonanza": "Regularly back up your code. Because losing code is like losing your car keys—frustrating and avoidable.",
+        "Git it together": "Use version control systems like Git. It's like having a time machine for your code.",
+        "Performance pep talk": "Optimize your code for better performance. Slow code is like a snail in a race—nobody's cheering.",
+        "Clean code club": "Keep your code clean and well-documented. Messy code is like a messy room—hard to find anything.",
+        "Test fest": "Write unit tests to ensure code quality. It's like giving your code a health check-up.",
+        "Dependency dance": "Regularly update your dependencies. Outdated dependencies are like expired milk—best avoided."
+    }
+
     st.subheader("🌟 Daily Coding Tip")
-    st.info(random.choice(coding_tips))
+    tip_key, tip_value = random.choice(list(coding_tips.items()))
+    st.info(f"**{tip_key}**: {tip_value}")
 
 # Footer
 st.markdown("---")
