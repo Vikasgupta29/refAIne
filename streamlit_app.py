@@ -1,13 +1,15 @@
 import streamlit as st
-from PIL import Image
-import os
 import boto3
-import json
 import uvicorn
 from fastapi import FastAPI, HTTPException
 import threading
 import requests
 import random
+from sql_agents.fix_syntax_agent import syntax_fix_graph
+from sql_agents.standardize_agent import standardize_graph
+from sql_agents.optimize_sql_agent import optimize_sql_graph
+from sql_agents.create_sql_documentation_agent import document_sql_graph
+import base64
 
 # Set page configuration (must be the first Streamlit command)
 st.set_page_config(page_title="ref[AI]ne | AHEAD", page_icon="💎", layout="wide")
@@ -138,8 +140,6 @@ st.markdown("""
 image_path = "logo.png"
 
 # Logo and Title
-import base64
-
 with open(image_path, "rb") as image_file:
     logo_base64 = base64.b64encode(image_file.read()).decode("utf-8")
 
@@ -167,74 +167,39 @@ bedrock_runtime = boto3.client('bedrock-runtime', region_name='us-west-2')
 # FastAPI App
 app = FastAPI()
 
-def generate_prompt(language, code, task_type):
-    if task_type == "fix_syntax":
-        prompt = f"Task: Fix the syntax of the code and return only the fixed code, nothing else.\n\n{language} Code:\n{code}\n\nProvide the corrected code without any explanation. Return 'Error: Language and Code Mismatch' if code provided is not {language}."
-        
-    elif task_type == "standardize":
-        prompt = f"Task: Standardize the provided code. Focus on enhancing readability and maintainability. This includes adding comments, docstrings, and adjusting variable names to follow the standard naming conventions (e.g., `var_name` instead of `varName`). Do **not** change the logic or functionality of the code.\n\n{language} Code:\n{code}\n\nReturn the standardized code with improvements like comments and docstrings, but without changing the core functionality. Return 'Error: Language and Code Mismatch' if code provided is not {language}."
-    
-    elif task_type == "document":
-        prompt = f"Task: Explain the provided code in simple language. Include a description of its purpose, structure, logic, and how it works. Provide any necessary details to understand the code. Include a simple example if applicable.\n\n{language} Code:\n{code}\n\nExplain the code. Return 'Error: Language and Code Mismatch' if code provided is not {language}."
-        
-    elif task_type == "optimize":
-        prompt = f"Task: Optimize the provided code if possible. Return the optimized code followed by a brief explanation of the optimization, and nothing else.\n\n{language} Code:\n{code}\n\nProvide the optimized code and explanation. Return 'Error: Language and Code Mismatch' if code provided is not {language}."
-    
-    return prompt
-
-# Function to Call AWS Claude Model
-def call_claude_api(code, task_type):
-    language = "SQL" if not st.session_state.get("language_toggle", False) else "Python"
-    prompt = generate_prompt(language, code, task_type)
-    kwargs = {
-        "modelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-        "contentType": "application/json",
-        "accept": "application/json",
-        "body": json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 200,
-            "top_k": 250,
-            "stop_sequences": [],
-            "temperature": 1,
-            "top_p": 0.999,
-            "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
-        })
-    }
-    try:
-        response = bedrock_runtime.invoke_model(**kwargs)
-        body = json.loads(response['body'].read())
-        return {"output": body["content"][0]["text"]}
-    except Exception as e:
-        return {"output": f"Error: {str(e)}"}
-
 # FastAPI Endpoints
 @app.post("/fix_syntax/")
 async def fix_syntax(data: dict):
-    code = data.get("code", "")
-    if not code:
-        raise HTTPException(status_code=400, detail="Code is required")
-    return call_claude_api(code, "fix_syntax")
+    sql_code = data.get("sql_code", "")
+    if not sql_code:
+        raise HTTPException(status_code=400, detail="SQL code is required")
+    response = syntax_fix_graph.invoke({"user_input": sql_code})['response'].content
+    return {"output": response}
 
 @app.post("/standardize/")
 async def standardize(data: dict):
-    code = data.get("code", "")
-    if not code:
-        raise HTTPException(status_code=400, detail="Code is required")
-    return call_claude_api(code, "standardize_code")
+    sql_code = data.get("sql_code", "")
+    if not sql_code:
+        raise HTTPException(status_code=400, detail="SQL code is required")
+    response = standardize_graph.invoke({"user_input": sql_code})['response'].content
+    return {"output": response}
 
 @app.post("/optimize/")
 async def optimize(data: dict):
-    code = data.get("code", "")
-    if not code:
-        raise HTTPException(status_code=400, detail="Code is required")
-    return call_claude_api(code, "optimize_code")
+    sql_code = data.get("sql_code", "")
+    if not sql_code:
+        raise HTTPException(status_code=400, detail="SQL code is required")
+    response = optimize_sql_graph.invoke({"user_input": sql_code})['response'].content
+    return {"output": response}
+
 
 @app.post("/document/")
 async def document(data: dict):
-    code = data.get("code", "")
-    if not code:
-        raise HTTPException(status_code=400, detail="Code is required")
-    return call_claude_api(code, "generate_documentation")
+    sql_code = data.get("sql_code", "")
+    if not sql_code:
+        raise HTTPException(status_code=400, detail="SQL code is required")
+    response = document_sql_graph.invoke({"user_input": sql_code})['response'].content
+    return {"output": response}
 
 # Start FastAPI Server in a Separate Thread
 def run_fastapi():
@@ -243,9 +208,9 @@ def run_fastapi():
 threading.Thread(target=run_fastapi, daemon=True).start()
 
 # Function to Call FastAPI from Streamlit
-def fetch_from_api(endpoint, code):
+def fetch_from_api(endpoint, sql_code):
     try:
-        response = requests.post(f"http://127.0.0.1:8502/{endpoint}/", json={"code": code})
+        response = requests.post(f"http://127.0.0.1:8502/{endpoint}/", json={"sql_code": sql_code})
         return response.json().get("output", "Error processing request")
     except Exception as e:
         return f"Error: {str(e)}"
@@ -310,4 +275,4 @@ with st.sidebar:
 
 # Footer
 st.markdown("---")
-st.markdown("Developed with 💙 by Vikas Gupta - AHEAD India | © 2025 ref[AI]ne")
+st.markdown("Developed with 💙 | AHEAD | © 2025 ref[AI]ne")
