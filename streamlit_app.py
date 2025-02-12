@@ -5,10 +5,10 @@ from fastapi import FastAPI, HTTPException
 import threading
 import requests
 import random
-from sql_agents.fix_syntax_agent import syntax_fix_graph
-from sql_agents.standardize_agent import standardize_graph
-from sql_agents.optimize_sql_agent import optimize_sql_graph
-from sql_agents.create_sql_documentation_agent import document_sql_graph
+from agents.fix_syntax_agent import syntax_fix_graph
+from agents.standardize_agent import standardize_graph
+from agents.optimize_sql_agent import optimize_sql_graph
+from agents.create_sql_documentation_agent import document_sql_graph
 import base64
 
 # Set page configuration (must be the first Streamlit command)
